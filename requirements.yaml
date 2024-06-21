@@ -1,0 +1,23 @@
+name: selfrdb
+channels:
+  - anaconda
+  - conda-forge
+  - nvidia
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy
+  - pytorch::pytorch=1.13.1
+  - torchvision=0.14.1
+  - nvidia::cudatoolkit=11.7
+  - lightning=2.2.4
+  - scikit-image
+  - matplotlib
+  - pyyaml
+  - ninja
+  - rich
+  - omegaconf
+  - pip
+  - pip:
+    - jsonargparse[signatures]>=4.27.7
