@@ -1,18 +1,8 @@
+
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import lightning as L
-
-
-def compute_gaussian_product_coef(sigma1, sigma2):
-    """ Given p1 = N(x_t|x_0, sigma_1**2) and p2 = N(x_t|y, sigma_2**2)
-        return p1 * p2 = N(x_t| coef1 * x0 + coef2 * y, var) """
-
-    denom = sigma1**2 + sigma2**2
-    coef1 = sigma2**2 / denom
-    coef2 = sigma1**2 / denom
-    var = (sigma1**2 * sigma2**2) / denom
-    return coef1, coef2, var
 
 
 class DiffusionBridge(L.LightningModule):
@@ -36,16 +26,19 @@ class DiffusionBridge(L.LightningModule):
         # Define betas
         self.betas = self._get_betas()
         
-        # Compute analytic std
-        std_fwd = np.cumsum(self.betas)**0.5
-        std_bwd = np.flip(np.cumsum(np.flip(self.betas)))**0.5
-        mu_x0, mu_y, var = compute_gaussian_product_coef(std_fwd, std_bwd)
-        var = std_fwd
-        std = gamma * var**0.5
+        # Mean schedule
+        s = np.cumsum(self.betas)**0.5
+        s_bar = np.flip(np.cumsum(np.flip(self.betas)))**0.5
+        mu_x0, mu_y, _ = self.gaussian_product(s, s_bar)
+
+        # Scale gamma for number of diffusion steps
+        gamma = gamma * self.betas.sum()
+        
+        # Noise schedule
+        std = gamma * s / (s**2 + s_bar**2)
 
         # Convert to tensors
-        self.register_buffer("std_fwd", torch.tensor(std_fwd))
-        self.register_buffer("std_bwd", torch.tensor(std_bwd))
+        self.register_buffer("s", torch.tensor(s))
         self.register_buffer("mu_x0", torch.tensor(mu_x0))
         self.register_buffer("mu_y", torch.tensor(mu_y))
         self.register_buffer("std", torch.tensor(std))
@@ -66,8 +59,8 @@ class DiffusionBridge(L.LightningModule):
         """ Sample p(x_{t-1} | x_t, x0, y) """
         shape = [-1] + [1] * (x0.ndim - 1)
 
-        std_t = self.std_fwd[t].view(shape)
-        std_tm1 = self.std_fwd[t-1].view(shape)
+        std_t = self.s[t].view(shape)
+        std_tm1 = self.s[t-1].view(shape)
         mu_x0_t = self.mu_x0[t].view(shape)
         mu_x0_tm1 = self.mu_x0[t-1].view(shape)
         mu_y_t = self.mu_y[t].view(shape)
@@ -134,6 +127,14 @@ class DiffusionBridge(L.LightningModule):
 
         return betas
 
+    @staticmethod
+    def gaussian_product(sigma1, sigma2):
+        denom = sigma1**2 + sigma2**2
+        mu1 = sigma2**2 / denom
+        mu2 = sigma1**2 / denom
+        var = (sigma1**2 * sigma2**2) / denom
+        return mu1, mu2, var
+    
     def vis_scheduler(self):
         plt.figure(figsize=(6, 3))
         plt.plot(self.std**2, label=r'$\sigma_t^2$', color='#3467eb')

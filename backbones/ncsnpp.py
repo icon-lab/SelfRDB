@@ -17,11 +17,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: skip-file
 """ Codes adapted from https://github.com/yang-song/score_sde_pytorch/blob/main/models/ncsnpp.py
 """
 
-from . import utils, layers, layerspp, dense_layer
+from . import layers, layerspp, dense_layer
 import torch.nn as nn
 import functools
 import torch
@@ -57,7 +56,6 @@ def default(val, d):
     return d() if callable(d) else d
 
 
-@utils.register_model(name="ncsnpp")
 class NCSNpp(nn.Module):
     """NCSN++ model"""
 
@@ -152,11 +150,10 @@ class NCSNpp(nn.Module):
         combiner = functools.partial(Combine, method=combine_method)
 
         modules = []
-        # timestep/noise_level embedding; only for continuous training
+        
+        # Timestep/noise_level embedding; only for continuous training
         if embedding_type == "fourier":
             # Gaussian Fourier features embeddings.
-            # assert config.training.continuous, "Fourier features are only used for continuous training."
-
             modules.append(
                 layerspp.GaussianFourierProjection(
                     embedding_size=nf, scale=fourier_scale
@@ -381,9 +378,7 @@ class NCSNpp(nn.Module):
         self.z_transform = nn.Sequential(*mapping_layers)
 
     def forward(self, x, time_cond, x_r=None):
-        z = torch.randn(x.shape[0], self.nz, device=x.device)
-
-        # Source : https://github.com/lucidrains/denoising-diffusion-pytorch/blob/main/denoising_diffusion_pytorch/denoising_diffusion_pytorch.py
+        # Self-recursion
         if self.self_recursion:
             x_r = (
                 torch.zeros_like(x[:, [0], :])
@@ -391,8 +386,11 @@ class NCSNpp(nn.Module):
                 else x_r[:, [0], :]
             )
             x = torch.cat((x_r, x), dim=1)
+        
+        # Latent vector
+        z = torch.randn(x.shape[0], self.nz, device=x.device)
             
-        # timestep/noise_level embedding; only for continuous training
+        # Timestep/noise_level embedding; only for continuous training
         zemb = self.z_transform(z)
         modules = self.all_modules
         m_idx = 0
