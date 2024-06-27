@@ -143,9 +143,6 @@ class BridgeRunner(L.LightningModule):
         # Perform backprop
         self.manual_backward(g_loss)
 
-        # Gradient clipping
-        # self.clip_gradients(optimizer_g, gradient_clip_val=1.0, gradient_clip_algorithm="norm")
-
         optimizer_g.step()
         optimizer_g.zero_grad()
         self.untoggle_optimizer(optimizer_g)

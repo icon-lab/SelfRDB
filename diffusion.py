@@ -28,7 +28,7 @@ class DiffusionBridge(L.LightningModule):
         
         # Mean schedule
         s = np.cumsum(self.betas)**0.5
-        s_bar = np.flip(np.cumsum(np.flip(self.betas)))**0.5
+        s_bar = np.flip(np.cumsum(self.betas))**0.5
         mu_x0, mu_y, _ = self.gaussian_product(s, s_bar)
 
         # Scale gamma for number of diffusion steps
