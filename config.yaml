@@ -43,14 +43,16 @@ model:
   disc_grad_penalty_freq: 10            # Frequency of the gradient penalty calculation for the discriminator
   disc_grad_penalty_weight: 0.5         # Gradient penalty weight for the discriminator
   lambda_rec_loss: 0.5                  # Reconstruction loss weight
-  recursion_prob: 0.5                   # Probability of the recursive step during training
+  optim_betas: [0.5, 0.9]               # Adam optimizer betas
+  eval_mask: True                       # Whether to use mask during test
+  eval_subject: True                    # Whether to evaluate subject-wise during test (`subject_ids` should be provided in the test dataset)
 
   diffusion_params:
-    n_steps: 10                       # Number of diffusion steps
+    n_steps: 10                         # Number of diffusion steps
     beta_start: 0.1                     # Beta start value of the diffusion process
     beta_end: 3.0                       # Beta end value of the diffusion process
     gamma: 1                            # Gamma value that controls noise in the end-point of the bridge
-    n_recursions: 5                     # Max number of recursions (R)
+    n_recursions: 2                     # Max number of recursions (R)
     consistency_threshold: 0.01         # Self-consistency threshold for the recursive step
 
   generator_params:

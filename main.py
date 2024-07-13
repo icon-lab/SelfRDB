@@ -1,5 +1,6 @@
 import os
 from random import random
+import numpy as np
 import torch
 from torch.nn import functional as F
 from torch.optim import Adam
@@ -11,7 +12,7 @@ from diffusion import DiffusionBridge
 from backbones.ncsnpp import NCSNpp
 from backbones.discriminator import Discriminator_large
 from datasets import DataModule
-from utils import compute_metrics, save_image_pair, save_preds
+from utils import compute_metrics, save_image_pair, save_preds, save_eval_images
 
 
 class BridgeRunner(L.LightningModule):
@@ -25,7 +26,9 @@ class BridgeRunner(L.LightningModule):
         disc_grad_penalty_freq,
         disc_grad_penalty_weight,
         lambda_rec_loss,
-        recursion_prob
+        optim_betas,
+        eval_mask,
+        eval_subject,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -35,8 +38,11 @@ class BridgeRunner(L.LightningModule):
         self.disc_grad_penalty_freq = disc_grad_penalty_freq
         self.disc_grad_penalty_weight = disc_grad_penalty_weight
         self.lambda_rec_loss = lambda_rec_loss
-        self.recursion_prob = recursion_prob
+        self.optim_betas = optim_betas
+        self.eval_mask = eval_mask
+        self.eval_subject = eval_subject
         self.n_steps = diffusion_params['n_steps']
+        self.n_recursions = diffusion_params['n_recursions']
 
         # Networks
         self.generator = NCSNpp(**generator_params)
@@ -44,9 +50,6 @@ class BridgeRunner(L.LightningModule):
 
         # Configure diffusion
         self.diffusion = DiffusionBridge(**diffusion_params)
-
-        # Store predicted images
-        self.test_samples = []
 
     def training_step(self, batch):
         x0, y, _ = batch
@@ -62,12 +65,9 @@ class BridgeRunner(L.LightningModule):
         t = torch.randint(1, self.n_steps+1, (x0.shape[0],)).to(x0.device)
 
         # Sample x_{t-1} and x_t via forward process
-        # x_tm1 = self.diffusion.q_sample(t - 1, x0, y)
+        x_tm1 = self.diffusion.q_sample(t - 1, x0, y)
         x_t = self.diffusion.q_sample(t, x0, y)
         x_t.requires_grad = True
-
-        # Sample x_{t-1} via posterior sampling
-        x_tm1 = self.diffusion.q_posterior(t, x_t, x0, y)
 
         # Perform real data prediction
         disc_out = self.discriminator(x_tm1, x_t, t)
@@ -84,11 +84,9 @@ class BridgeRunner(L.LightningModule):
         # Part 1.b: Train discriminator with fake data
         # Perform recursive x0 prediction
         x0_r = torch.zeros_like(x_t)
-        if random() < self.recursion_prob:
-            with torch.inference_mode():
-                x0_r = self.generator(torch.cat((x_t.detach(), y), axis=1), t, x_r=None).detach()
-
-        x0_pred = self.generator(torch.cat((x_t.detach(), y), axis=1), t, x_r=x0_r)
+        for _ in range(self.n_recursions):
+            x0_r = self.generator(torch.cat((x_t.detach(), y), axis=1), t, x_r=x0_r)
+        x0_pred = x0_r
 
         # Posterior sampling q(x_{t-1} | x_t, y, x0_pred)
         x_tm1_pred = self.diffusion.q_posterior(t, x_t, x0_pred, y)
@@ -121,11 +119,9 @@ class BridgeRunner(L.LightningModule):
 
         # Perform recursive x0 prediction
         x0_r = torch.zeros_like(x_t)
-        if random() < self.recursion_prob:
-            with torch.inference_mode():
-                x0_r = self.generator(torch.cat((x_t.detach(), y), axis=1), t, x_r=None).detach()
-
-        x0_pred = self.generator(torch.cat((x_t.detach(), y), axis=1), t, x_r=x0_r)
+        for _ in range(self.n_recursions):
+            x0_r = self.generator(torch.cat((x_t.detach(), y), axis=1), t, x_r=x0_r)
+        x0_pred = x0_r
 
         # Posterior sampling q(x_{t-1} | x_t, y, x0_pred)
         x_tm1_pred = self.diffusion.q_posterior(t, x_t, x0_pred, y)
@@ -153,7 +149,6 @@ class BridgeRunner(L.LightningModule):
         
         # Log losses
         self.log("d_loss", d_loss, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.log("d_acc", d_acc, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("g_loss/rec", rec_loss, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("g_loss/adv", adv_loss, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("g_loss/total", g_loss, on_epoch=True, prog_bar=True, sync_dist=True)
@@ -167,6 +162,7 @@ class BridgeRunner(L.LightningModule):
         loss = F.mse_loss(x0_pred, x0)
         metrics = compute_metrics(x0, x0_pred)
 
+        # Log metrics
         self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("val_psnr", metrics["psnr_mean"].mean(), on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("val_ssim", metrics["ssim_mean"].mean(), on_epoch=True, prog_bar=True, sync_dist=True)
@@ -176,19 +172,28 @@ class BridgeRunner(L.LightningModule):
             path = os.path.join(self.logger.log_dir, "val_samples", f"epoch_{self.current_epoch}.png")
             save_image_pair(x0, x0_pred, path)
 
+    def on_test_start(self):
+        self.test_samples = []
+        self.psnrs = []
+        self.ssims = []
+        self.mask = None
+        self.subject_ids = None
+
+        # Load mask for evaluation
+        if self.eval_mask:
+            self.mask = self.trainer.datamodule.test_dataset._load_data('mask')
+
+        # Load subject ids for evaluation
+        if self.eval_subject:
+            self.subject_ids = self.trainer.datamodule.test_dataset.subject_ids
+
     def test_step(self, batch, batch_idx):
         x0, y, slice_idx = batch
 
         # Predict x0
         x0_pred = self.diffusion.sample_x0(y, self.generator)
 
-        # Compute metrics
-        metrics = compute_metrics(x0, x0_pred)
-
-        self.log("PSNR", metrics["psnr_mean"].mean(), on_epoch=True, prog_bar=True, sync_dist=True)
-        self.log("SSIM", metrics["ssim_mean"].mean(), on_epoch=True, prog_bar=True, sync_dist=True)
-
-        # Gather predictions across all ranks
+        # Gather pred images across all ranks
         all_pred = self.all_gather(x0_pred)
         slice_indices = self.all_gather(slice_idx)
         
@@ -197,27 +202,62 @@ class BridgeRunner(L.LightningModule):
             self.test_samples.extend(list(zip(
                 slice_indices.flatten().tolist(),
                 all_pred.reshape(-1, h, w).cpu().numpy())))
-
+        
     def on_test_end(self):
         # Save predicted images
         if self.global_rank == 0:
             # Sort samples by slice index
             self.test_samples.sort(key=lambda x: x[0])
             
-            # Extract predictions
-            pred = [x[1] for x in self.test_samples]
+            # Extract pred images
+            pred = np.array([x[1] for x in self.test_samples])
+            slice_indices = np.array([x[0] for x in self.test_samples])
+
+            # Remove repeated slices that can occur in multi-GPU setting
+            _, locs = np.unique(slice_indices, return_index=True)
+            pred = pred[locs]
+
+            # Get source and target images
+            dataset = self.trainer.datamodule.test_dataset
+            source = dataset.source
+            target = dataset.target
 
             # Save predictions
             path = os.path.join(self.logger.log_dir, "test_samples", "pred.npy")
             save_preds(pred, path)
+
+            # Compute metrics and save report
+            metrics = compute_metrics(
+                gt_images=target,
+                pred_images=pred,
+                mask=self.mask,
+                subject_ids=self.subject_ids,
+                report_path=os.path.join(self.logger.log_dir, "test_samples", "report.txt")
+            )
+
+            # Print metrics
+            print(f"PSNR: {metrics['psnr_mean']:.2f} ± {metrics['psnr_std']:.2f}")
+            print(f"SSIM: {metrics['ssim_mean']:.2f} ± {metrics['ssim_std']:.2f}")
+
+            # Save sample images
+            indices = np.random.choice(len(dataset), 10)
+            path = os.path.join(self.logger.log_dir, "test_samples")
+            save_eval_images(
+                source_images=source[indices],
+                target_images=target[indices],
+                pred_images=pred[indices],
+                psnrs=metrics["psnrs"][indices],
+                ssims=metrics["ssims"][indices],
+                save_path=os.path.join(self.logger.log_dir, "test_samples")
+            )
 
     def adversarial_loss(self, pred, is_real):
         loss = F.softplus(-pred) if is_real else F.softplus(pred)
         return loss.mean()
     
     def configure_optimizers(self):
-        optimizer_g = Adam(self.generator.parameters(), lr=self.lr_g, betas=(0.5, 0.9))
-        optimizer_d = Adam(self.discriminator.parameters(), lr=self.lr_d, betas=(0.5, 0.9))
+        optimizer_g = Adam(self.generator.parameters(), lr=self.lr_g, betas=self.optim_betas)
+        optimizer_d = Adam(self.discriminator.parameters(), lr=self.lr_d, betas=self.optim_betas)
         
         # Learning rate schedulers
         scheduler_g = CosineAnnealingLR(optimizer_g, T_max=self.trainer.max_epochs, eta_min=1e-5)
@@ -226,8 +266,21 @@ class BridgeRunner(L.LightningModule):
         return [optimizer_g, optimizer_d], [scheduler_g, scheduler_d]
 
 
+class _LightningCLI(LightningCLI):
+    def instantiate_classes(self):
+        # Log to checkpoint directory when testing
+        if 'test' in self.parser.args and 'CSVLogger' in self.config.test.trainer.logger[0].class_path:
+            exp_dir = os.path.dirname(os.path.dirname(self.config.test.ckpt_path))
+            logger = self.config.test.trainer.logger[0]
+            logger.init_args.save_dir = os.path.dirname(exp_dir)
+            logger.init_args.name = os.path.basename(exp_dir)
+            logger.init_args.version = "test"
+
+        super().instantiate_classes()
+
+
 def cli_main():
-    cli = LightningCLI(
+    cli = _LightningCLI(
         BridgeRunner,
         DataModule,
         save_config_callback=None,

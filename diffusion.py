@@ -109,7 +109,10 @@ class DiffusionBridge(L.LightningModule):
     
     def _get_betas(self):
         betas_len = self.n_steps + 1
-        betas = np.linspace(self.beta_start**0.5, self.beta_end**0.5, betas_len, dtype=np.float32)**2
+        betas = np.linspace(self.beta_start**0.5, self.beta_end**0.5, betas_len)**2
+        
+        # Discretization correction
+        betas = np.append(0., betas).astype(np.float32)
         
         # Handle odd number of betas
         if betas_len % 2 == 1:
@@ -138,7 +141,6 @@ class DiffusionBridge(L.LightningModule):
     def vis_scheduler(self):
         plt.figure(figsize=(6, 3))
         plt.plot(self.std**2, label=r'$\sigma_t^2$', color='#3467eb')
-        plt.plot(self.std, label=r'$\sigma_t$', color='#3467eb')
         plt.plot(self.mu_x0, label=r'$\mu_{x_0}$', color='#6cd4a2')
         plt.plot(self.mu_y, label=r'$\mu_{y}$', color='#d46c7d')
 

@@ -1,18 +1,29 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import os
+import yaml
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import lightning as L
 
 
 class BaseDataset(Dataset):
-    def __init__(self, data_dir, contrasts, stage, image_size, norm=True, padding=True):
+    def __init__(self,
+        data_dir,
+        target_modality,
+        source_modality,
+        stage,
+        image_size,
+        norm=True,
+        padding=True
+    ):
         self.data_dir = data_dir
-        self.target_contrast, self.source_contrast = contrasts
+        self.target_modality= target_modality
+        self.source_modality = source_modality
         self.stage = stage
         self.image_size = image_size
         self.norm = norm
         self.padding = padding
+        self.original_shape = None
 
     @abstractmethod
     def _load_data(self, contrast):
@@ -34,12 +45,35 @@ class BaseDataset(Dataset):
 
 
 class NumpyDataset(BaseDataset):
-    def __init__(self, data_dir, contrasts, stage, image_size, norm=True, padding=True):
-        super().__init__(data_dir, contrasts, stage, image_size, norm, padding)
+    def __init__(
+        self,
+        data_dir,
+        target_modality,
+        source_modality,
+        stage,
+        image_size,
+        norm=True,
+        padding=True
+    ):
+        super().__init__(
+            data_dir,
+            target_modality,
+            source_modality,
+            stage,
+            image_size,
+            norm,
+            padding
+        )
 
         # Load target images
-        self.target = self._load_data(self.target_contrast)
-        self.source = self._load_data(self.source_contrast)
+        self.target = self._load_data(self.target_modality)
+        self.source = self._load_data(self.source_modality)
+
+        # Get original shape
+        self.original_shape = self.target.shape[-2:]
+
+        # Load subject ids
+        self.subject_ids = self._load_subject_ids('subject_ids.yaml')
 
         # Padding
         if self.padding:
@@ -57,15 +91,26 @@ class NumpyDataset(BaseDataset):
 
     def _load_data(self, contrast):
         data_dir = os.path.join(self.data_dir, contrast, self.stage)
-        data = []
         files = [f for f in os.listdir(data_dir) if f.endswith('.npy')]
 
         # Sort by slice index
         files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
 
+        data = []
         for file in files:
             data.append(np.load(os.path.join(data_dir, file)))
+        
         return np.array(data).astype(np.float32)
+
+    def _load_subject_ids(self, filename):
+        subject_ids_path = os.path.join(self.data_dir, filename)
+        if os.path.exists(subject_ids_path):
+            with open(subject_ids_path, 'r') as f:
+                subject_ids = np.array(yaml.load(f, Loader=yaml.FullLoader))
+        else:
+            subject_ids = None
+
+        return subject_ids
 
     def __len__(self):
         return len(self.source)
@@ -111,7 +156,8 @@ class DataModule(L.LightningDataModule):
 
         if stage == "fit":
             self.train_dataset = self.dataset_class(
-                contrasts=(target_modality, source_modality),
+                target_modality=target_modality,
+                source_modality=source_modality,
                 data_dir=self.dataset_dir,
                 stage='train',
                 image_size=self.image_size,
@@ -120,7 +166,8 @@ class DataModule(L.LightningDataModule):
             )
 
             self.val_dataset = self.dataset_class(
-                contrasts=(target_modality, source_modality),
+                target_modality=target_modality,
+                source_modality=source_modality,
                 data_dir=self.dataset_dir,
                 stage='val',
                 image_size=self.image_size,
@@ -130,21 +177,14 @@ class DataModule(L.LightningDataModule):
 
         if stage == "test":
             self.test_dataset = self.dataset_class(
-                contrasts=(target_modality, source_modality),
+                target_modality=target_modality,
+                source_modality=source_modality,
                 data_dir=self.dataset_dir,
                 stage='test',
                 image_size=self.image_size,
                 padding=self.padding,
                 norm=self.norm
             )
-
-            # Check if test dataset length is divisible by the number of devices
-            if self.trainer is not None:
-                data_len = len(self.test_dataset)
-                device_count =  len(self.trainer.device_ids)
-
-                if data_len % device_count != 0:
-                    raise ValueError(f"Test dataset length ({data_len}) must be divisible by the number of devices ({device_count})")
 
     def train_dataloader(self):
         return DataLoader(
