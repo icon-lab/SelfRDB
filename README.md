@@ -62,7 +62,7 @@ The default data set class `NumpyDataset` requires the following folder structur
 
 ## 🏃 Training
 
-Run the following command to start/resume training. Model checkpoints are saved under `logs/$EXP_NAME/version_x/checkpoints` directory, and sample validation images are saved under `logs/$EXP_NAME/version_x/val_samples`. The script supports both single and multi-GPU training. By default, it runs on a single GPU. To enable multi-GPU training, set `--trainer.devices` argument to the list of devices, e.g. [0,1,2,3].
+Run the following command to start/resume training. Model checkpoints are saved under `logs/$EXP_NAME/version_x/checkpoints` directory, and sample validation images are saved under `logs/$EXP_NAME/version_x/val_samples`. The script supports both single and multi-GPU training. By default, it runs on a single GPU. To enable multi-GPU training, set `--trainer.devices` argument to the list of devices, e.g. `0,1,2,3`.
 
 ```
 python main.py fit \
@@ -91,12 +91,12 @@ python main.py fit \
 | `--data.val_batch_size`     | Validation set batch size.                                                                                                     |
 | `--trainer.max_epoch`       | [Optional] Number of training epochs (default: 50).                                                                            |
 | `--ckpt_path`               | [Optional] Model checkpoint path to resume training.                                                                           |
-| `--trainer.devices`         | [Optional] Device or list of devices. For multi-GPU set to the list of device ids, e.g [0,1,2,3] (default: 0).                 |
+| `--trainer.devices`         | [Optional] Device or list of devices. For multi-GPU set to the list of device ids, e.g `0,1,2,3` (default: `[0]`).             |
 
 
 ## 🧪 Testing
 
-Run the following command to start testing. The predicted images are saved under `logs/$EXP_NAME/version_x/test_samples` directory. By default, the script runs on a single GPU. To enable multi-GPU testing, set `--trainer.devices` argument to the list of devices, e.g. [0,1,2,3].
+Run the following command to start testing. The predicted images are saved under `logs/$EXP_NAME/version_x/test_samples` directory. By default, the script runs on a single GPU. To enable multi-GPU testing, set `--trainer.devices` argument to the list of devices, e.g. `0,1,2,3`.
 
 ```
 python main.py test \
