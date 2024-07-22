@@ -118,6 +118,21 @@ Some arguments are common to both training and testing and are not listed here. 
 | `--data.test_batch_size`    | Test set batch size.                       |
 | `--ckpt_path`               | Model checkpoint path.                     |
 
+## 🦁 Model Zoo
+Refer to the testing section above to perform inference with the checkpoints. PSNR (dB) and SSIM (%) are listed as mean ± std across the test set.
+
+| Dataset   | Task      | PSNR               | SSIM                | Checkpoint                                                                                              |
+|-----------|-----------|--------------------|---------------------|---------------------------------------------------------------------------------------------------------|
+| IXI       | T2→T1     | 31.63 ± 1.53       | 95.64 ± 1.12        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/ixi_t2_t1.ckpt)                   |
+| IXI       | T1→T2     | 31.28 ± 1.56       | 95.03 ± 1.27        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/ixi_t1_t2.ckpt)                   |
+| IXI       | PD→T1     | 31.23 ± 1.22       | 95.64 ± 0.99        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/ixi_pd_t1.ckpt)                   |
+| IXI       | T1→PD     | 32.17 ± 1.57       | 95.15 ± 0.99        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/ixi_t1_pd.ckpt)                   |
+| BRATS     | T2→T1     | 28.85 ± 1.48       | 93.70 ± 1.87        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/brats_t2_t1.ckpt)                 |
+| BRATS     | T1→T2     | 27.58 ± 1.88       | 92.99 ± 2.44        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/brats_t1_t2.ckpt)                 |
+| BRATS     | FLAIR→T2  | 26.85 ± 1.75       | 91.66 ± 2.72        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/brats_flair_t2.ckpt)              |
+| BRATS     | T2→FLAIR  | 27.98 ± 1.80       | 90.01 ± 2.70        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/brats_t2_flair.ckpt)              |
+| CT        | T2→CT     | 29.18 ± 2.18       | 93.28 ± 1.99        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/ct_t2_ct.ckpt)                    |
+| CT        | T1→CT     | 27.55 ± 3.32       | 92.29 ± 6.32        | [Link](https://github.com/icon-lab/SelfRDB/releases/download/v1.0.0/ct_t1_ct.ckpt)                    |
 
 ## ✒️ Citation
 You are encouraged to modify/distribute this code. However, please acknowledge this code and cite the paper appropriately.
