@@ -101,7 +101,6 @@ Run the following command to start testing. The predicted images are saved under
 ```
 python main.py test \
     --config config.yaml \
-    --trainer.logger.name $EXP_NAME \
     --data.dataset_dir $DATA_DIR \
     --data.source_modality $SOURCE \
     --data.target_modality $TARGET \
