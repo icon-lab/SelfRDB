@@ -181,10 +181,6 @@ def compute_metrics(
         if isinstance(pred_images, torch.Tensor):
             pred_images = pred_images.cpu().numpy()
 
-        # Squeeze channel dimension
-        gt_images = gt_images.squeeze()
-        pred_images = pred_images.squeeze()
-
         # If images between [-1, 1], scale to [0, 1]
         if np.nanmin(gt_images) < -0.1:
             gt_images = ((gt_images + 1) / 2).clip(0, 1)
@@ -206,6 +202,9 @@ def compute_metrics(
 
         # Compute psnr and ssim
         for gt, pred in zip(gt_images, pred_images):
+            gt = gt.squeeze()
+            pred = pred.squeeze()
+            
             psnr_value = psnr(gt, pred, data_range=gt.max())
             psnr_values.append(psnr_value)
 
