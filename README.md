@@ -39,6 +39,8 @@ conda activate selfrdb
 
 The default data set class `NumpyDataset` requires the following folder structure to organize the data set. Modalities (T1, T2, etc.) are separated by folders, splits (train, val, test) are organized as subfolders which include 2D images: `slice_0.npy`, `slice_1.npy`, ... To use your custom data set class, set `dataset_class` to your own implementation in `dataset.py` by inheriting from the `BaseDataset` class.
 
+> Images should be scaled to have pixel values in the range [0,1].
+
 ```
 <dataset>/
 ├── <modality_a>/
