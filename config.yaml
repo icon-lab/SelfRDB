@@ -28,7 +28,6 @@ trainer:
         logging_interval: step
 
   max_epochs: 50
-  limit_val_batches: 1
   check_val_every_n_epoch: 10
   num_sanity_val_steps: 0
   log_every_n_steps: 1
