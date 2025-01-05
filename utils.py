@@ -163,7 +163,17 @@ def compute_metrics(
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
+        # If images 4-dimensional, squeeze channel dimension
+        gt_images = gt_images.squeeze() if gt_images.ndim == 4 else gt_images
+        pred_images = pred_images.squeeze() if pred_images.ndim == 4 else pred_images
 
+        # If images 2-dimensional, add channel dimension
+        gt_images = gt_images[None, ...] if gt_images.ndim == 2 else gt_images
+        pred_images = pred_images[None, ...] if pred_images.ndim == 2 else pred_images
+
+        assert gt_images.shape == pred_images.shape, \
+            "Ground truth and predicted images must have the same shape"
+        
         # Compute psnr and ssim
         psnr_values = []
         ssim_values = []
