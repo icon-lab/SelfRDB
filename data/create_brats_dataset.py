@@ -8,7 +8,7 @@ from tqdm import tqdm
 import nibabel as nib
 
 
-def split_data(data_root, output_root):
+def split_data(data_root, output_root, seed=42):
     """
     Split data into train/val/test sets.
 
@@ -22,6 +22,7 @@ def split_data(data_root, output_root):
      ├── BraTS2021_00001/
      └── ...
     """
+    random.seed(seed)
     train_dir = os.path.join(output_root, "train")
     val_dir = os.path.join(output_root, "val")
     test_dir = os.path.join(output_root, "test")
