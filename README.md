@@ -17,7 +17,7 @@
 </div>
 <hr>
 
-<h3 align="center">[<a href="https://arxiv.org/abs/2405.06789">arXiv</a>]</h3>
+<h3 align="center"> [<a href="https://arxiv.org/abs/2405.06789" target="_blank">arXiv</a>] &ensp; · &ensp; [<a href="https://doi.org/10.1016/j.media.2025.103747" target="_blank">Journal&nbsp;(Medical&nbsp;Image&nbsp;Analysis)</a>] </h3>
 
 Official PyTorch implementation of **SelfRDB**, a novel diffusion bridge model for multi-modal medical image synthesis that employs a novel forward process with soft-prior, and self-consistent recursion in reverse process. Our novel noise scheduling with monotonically increasing variance towards the end-point, i.e. soft-prior, boosts generalization performance and facilitates information transfer between the two modalities. To further enhance sampling accuracy in each reverse step, SelfRDB utilizes a novel sampling procedure where the network recursively generates a transient-estimate of the target image until convergence onto a self-consistent solution.
 
